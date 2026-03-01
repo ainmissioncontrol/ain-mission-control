@@ -140,12 +140,24 @@ async def _require_gateway_for_create(
     payload: BoardCreate,
     ctx: OrganizationContext = ORG_ADMIN_DEP,
     session: AsyncSession = SESSION_DEP,
-) -> Gateway:
+) -> Gateway | None:
+    if payload.gateway_id is None:
+        return None
     return await _require_gateway(
         session,
         payload.gateway_id,
         organization_id=ctx.organization.id,
     )
+
+
+
+
+
+
+
+
+
+
 
 
 async def _require_board_group(
@@ -475,7 +487,7 @@ async def list_boards(
 @router.post("", response_model=BoardRead)
 async def create_board(
     payload: BoardCreate,
-    _gateway: Gateway = GATEWAY_CREATE_DEP,
+    _gateway: Gateway | None = GATEWAY_CREATE_DEP,
     _board_group: BoardGroup | None = BOARD_GROUP_CREATE_DEP,
     session: AsyncSession = SESSION_DEP,
     ctx: OrganizationContext = ORG_ADMIN_DEP,
