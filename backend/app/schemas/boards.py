@@ -49,8 +49,8 @@ class BoardCreate(BoardBase):
         if not description:
             raise ValueError(_ERR_DESCRIPTION_REQUIRED)
         self.description = description
-        if self.gateway_id is None:
-            raise ValueError(_ERR_GATEWAY_REQUIRED)
+        #         if self.gateway_id is None:
+        #             raise ValueError(_ERR_GATEWAY_REQUIRED)
         if (
             self.board_type == "goal"
             and self.goal_confirmed
