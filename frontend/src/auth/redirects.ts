@@ -1,4 +1,4 @@
-const DEFAULT_SIGN_IN_REDIRECT = "/onboarding";
+const DEFAULT_SIGN_IN_REDIRECT = "/dashboard";
 
 function isSafeRelativePath(value: string): boolean {
   return value.startsWith("/") && !value.startsWith("//");
