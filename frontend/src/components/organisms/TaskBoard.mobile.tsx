@@ -1,3 +1,4 @@
+import React from "react";
 /**
  * Mobile-optimized Kanban board with carousel view for mobile
  * and horizontal scroll for desktop.
