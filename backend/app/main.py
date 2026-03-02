@@ -440,8 +440,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await init_db()
         logger.info("app.lifecycle.started")
     except Exception as e:
-        logger.error(f"app.lifecycle.failed error={e}", exc_info=True)
-        raise
+        logger.warning(f"app.lifecycle.db_init_failed error={e}, continuing anyway")
+        logger.info("app.lifecycle.started (db unavailable)")
     try:
         yield
     finally:
