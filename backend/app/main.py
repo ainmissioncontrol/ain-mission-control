@@ -436,8 +436,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         settings.environment,
         settings.db_auto_migrate,
     )
-    await init_db()
-    logger.info("app.lifecycle.started")
+    try:
+        await init_db()
+        logger.info("app.lifecycle.started")
+    except Exception as e:
+        logger.error(f"app.lifecycle.failed error={e}", exc_info=True)
+        raise
     try:
         yield
     finally:
