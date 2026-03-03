@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2, X as XIcon } from "lucide-react";
 
 const BOARDS = [
   { id: "1", name: "AIN: Lead Pipeline", slug: "ain-lead-pipeline" },
@@ -39,27 +39,46 @@ const BOARD_STAGES: Record<string, string[]> = {
   "ops-blocked": ["Waiting on Decision", "Waiting on Input", "External Blocker"],
 };
 
+interface Checklist {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 interface Task {
   id: string;
   title: string;
   description: string;
   priority: "high" | "medium" | "low";
   tags: string[];
+  checklist?: Checklist[];
+  notes?: string;
+  assignee?: string;
+  dueDate?: string;
 }
 
 export default function BoardsPage() {
   const [selectedBoardId, setSelectedBoardId] = useState<string>("15");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<{ task: Task; stage: string } | null>(null);
   
   const [tasks, setTasks] = useState<Record<string, Task[]>>({
     "Waiting on Input": [
       {
         id: "task-1",
         title: "Provide Q2 Critical Inputs",
-        description: "Need: booking link, interview answers, case studies",
+        description: "Gathering the 3 critical inputs needed to launch Phase 4",
         priority: "high",
-        tags: ["critical", "q2-launch"]
+        tags: ["critical", "q2-launch"],
+        checklist: [
+          { id: "check-1", text: "Booking link for discovery call calendar", completed: false },
+          { id: "check-2", text: "Interview answers (about AIN background)", completed: false },
+          { id: "check-3", text: "2-3 customer case studies", completed: false }
+        ],
+        notes: "These inputs unlock Phase 4 execution. Once received, we can finalize content strategy and launch.",
+        assignee: "Jeff",
+        dueDate: "2026-03-07"
       }
     ]
   });
@@ -81,7 +100,6 @@ export default function BoardsPage() {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
-  // Update URL when board changes
   const handleBoardSelect = (boardId: string) => {
     const board = BOARDS.find((b) => b.id === boardId);
     if (board) {
@@ -100,7 +118,9 @@ export default function BoardsPage() {
       title,
       description: "",
       priority: "medium",
-      tags: []
+      tags: [],
+      checklist: [],
+      notes: ""
     };
     setTasks((prev) => ({
       ...prev,
@@ -113,6 +133,17 @@ export default function BoardsPage() {
       ...prev,
       [stage]: prev[stage].filter((t) => t.id !== taskId)
     }));
+  };
+
+  const toggleChecklistItem = (taskId: string, checkId: string) => {
+    if (!selectedTask) return;
+    const updatedTask = {
+      ...selectedTask.task,
+      checklist: selectedTask.task.checklist?.map((item) =>
+        item.id === checkId ? { ...item, completed: !item.completed } : item
+      ) || []
+    };
+    setSelectedTask({ ...selectedTask, task: updatedTask });
   };
 
   return (
@@ -196,17 +227,24 @@ export default function BoardsPage() {
                 <div className="space-y-3 flex-1">
                   {tasks[stage] && tasks[stage].length > 0 ? (
                     tasks[stage].map((task) => (
-                      <div key={task.id} className="p-3 bg-slate-50 rounded border border-slate-300 hover:shadow-md transition-shadow group">
+                      <div
+                        key={task.id}
+                        onClick={() => setSelectedTask({ task, stage })}
+                        className="p-3 bg-slate-50 rounded border border-slate-300 hover:shadow-md hover:border-slate-400 transition-all cursor-pointer group"
+                      >
                         <div className="flex items-start justify-between">
                           <h4 className="font-medium text-slate-900 text-sm flex-1">{task.title}</h4>
                           <button
-                            onClick={() => deleteTask(stage, task.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteTask(stage, task.id);
+                            }}
                             className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded"
                           >
                             <Trash2 className="w-4 h-4 text-red-600" />
                           </button>
                         </div>
-                        <p className="text-xs text-slate-600 mt-1">{task.description}</p>
+                        <p className="text-xs text-slate-600 mt-1 line-clamp-2">{task.description}</p>
                         <div className="flex gap-2 mt-2">
                           {task.tags.map((tag) => (
                             <span
@@ -240,6 +278,111 @@ export default function BoardsPage() {
           </div>
         </div>
       </main>
+
+      {/* Card Detail Modal */}
+      {selectedTask && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedTask(null)}>
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-slate-900">{selectedTask.task.title}</h2>
+                <p className="text-sm text-slate-600 mt-2">{selectedTask.stage}</p>
+              </div>
+              <button
+                onClick={() => setSelectedTask(null)}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal content */}
+            <div className="p-6 space-y-6">
+              {/* Priority & Assignee */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold text-slate-900">Priority</label>
+                  <p className="text-sm text-slate-600 mt-1 capitalize">
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                      selectedTask.task.priority === "high" ? "bg-red-100 text-red-700" :
+                      selectedTask.task.priority === "medium" ? "bg-yellow-100 text-yellow-700" :
+                      "bg-green-100 text-green-700"
+                    }`}>
+                      {selectedTask.task.priority}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-900">Assignee</label>
+                  <p className="text-sm text-slate-600 mt-1">{selectedTask.task.assignee || "Unassigned"}</p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-sm font-semibold text-slate-900 block mb-2">Description</label>
+                <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded">{selectedTask.task.description || "No description"}</p>
+              </div>
+
+              {/* Tags */}
+              {selectedTask.task.tags.length > 0 && (
+                <div>
+                  <label className="text-sm font-semibold text-slate-900 block mb-2">Tags</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {selectedTask.task.tags.map((tag) => (
+                      <span key={tag} className="text-xs px-3 py-1 bg-slate-200 text-slate-700 rounded-full">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Checklist */}
+              {selectedTask.task.checklist && selectedTask.task.checklist.length > 0 && (
+                <div>
+                  <label className="text-sm font-semibold text-slate-900 block mb-3">Checklist</label>
+                  <div className="space-y-2">
+                    {selectedTask.task.checklist.map((item) => (
+                      <div key={item.id} className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          onChange={() => toggleChecklistItem(selectedTask.task.id, item.id)}
+                          className="w-4 h-4 rounded border-slate-300"
+                        />
+                        <span className={`text-sm ${item.completed ? "line-through text-slate-400" : "text-slate-600"}`}>
+                          {item.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {selectedTask.task.notes && (
+                <div>
+                  <label className="text-sm font-semibold text-slate-900 block mb-2">Notes</label>
+                  <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded">{selectedTask.task.notes}</p>
+                </div>
+              )}
+
+              {/* Due Date */}
+              {selectedTask.task.dueDate && (
+                <div>
+                  <label className="text-sm font-semibold text-slate-900 block mb-2">Due Date</label>
+                  <p className="text-sm text-slate-600">{new Date(selectedTask.task.dueDate).toLocaleDateString()}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
