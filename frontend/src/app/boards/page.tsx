@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 
 const BOARDS = [
@@ -52,7 +52,6 @@ export default function BoardsPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Local state for tasks - will be replaced with database
   const [tasks, setTasks] = useState<Record<string, Task[]>>({
     "Waiting on Input": [
       {
@@ -64,6 +63,33 @@ export default function BoardsPage() {
       }
     ]
   });
+
+  // Handle hash routing
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        const board = BOARDS.find((b) => b.slug === hash || b.id === hash);
+        if (board) {
+          setSelectedBoardId(board.id);
+        }
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  // Update URL when board changes
+  const handleBoardSelect = (boardId: string) => {
+    const board = BOARDS.find((b) => b.id === boardId);
+    if (board) {
+      window.location.hash = board.slug;
+      setSelectedBoardId(boardId);
+      setMobileMenuOpen(false);
+    }
+  };
 
   const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
   const stages = selectedBoard ? (BOARD_STAGES[selectedBoard.slug] || ["Inbox", "In Progress", "Review", "Done"]) : ["Inbox", "In Progress", "Review", "Done"];
@@ -128,10 +154,7 @@ export default function BoardsPage() {
             {BOARDS.map((board) => (
               <li key={board.id}>
                 <button
-                  onClick={() => {
-                    setSelectedBoardId(board.id);
-                    setMobileMenuOpen(false);
-                  }}
+                  onClick={() => handleBoardSelect(board.id)}
                   title={board.name}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors truncate ${
                     selectedBoardId === board.id
@@ -150,8 +173,15 @@ export default function BoardsPage() {
       {/* Main Content Area - Kanban Board */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-white border-b border-slate-200 p-4 lg:p-6">
-          <h1 className="text-2xl font-bold text-slate-900 mt-12 md:mt-0">{selectedBoard?.name}</h1>
-          <p className="text-sm text-slate-600 mt-1">{stages.length} pipeline stages</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 mt-12 md:mt-0">{selectedBoard?.name}</h1>
+              <p className="text-sm text-slate-600 mt-1">{stages.length} pipeline stages</p>
+            </div>
+            <div className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-mono">
+              #{selectedBoard?.slug}
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 overflow-auto p-4 lg:p-6">
