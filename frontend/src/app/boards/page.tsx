@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2, X as XIcon, Mic, Square, AlertCircle } from "lucide-react";
+import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2, X as XIcon, Mic, Square, AlertCircle, GripVertical } from "lucide-react";
 
 const BOARDS = [
   { id: "1", name: "AIN: Lead Pipeline", slug: "ain-lead-pipeline" },
@@ -66,21 +66,15 @@ interface Task {
   updatedAt?: string;
 }
 
-// Auto-sync card to backend
 async function syncCardToBackend(boardSlug: string, stage: string, task: Task) {
   try {
-    const response = await fetch("https://ain-mission-control.vercel.app/api/cards/sync", {
+    await fetch("https://ain-mission-control.vercel.app/api/cards/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ board: boardSlug, stage, task })
     });
-    const result = await response.json();
-    
-    if (result.phase4_ready) {
-      console.log("🚀 PHASE 4 READY!");
-    }
   } catch (error) {
-    // Offline mode: continue
+    // Offline mode
   }
 }
 
@@ -93,6 +87,11 @@ export default function BoardsPage() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const boardContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollX, setScrollX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [draggedTask, setDraggedTask] = useState<{ task: Task; fromStage: string } | null>(null);
   
   const [tasks, setTasks] = useState<Record<string, Task[]>>({
     "Waiting on Input": [
@@ -116,7 +115,6 @@ export default function BoardsPage() {
     ]
   });
 
-  // Load from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("mission-control-tasks");
     if (saved) {
@@ -124,11 +122,9 @@ export default function BoardsPage() {
     }
   }, []);
 
-  // Save to localStorage AND sync to backend whenever tasks change
   useEffect(() => {
     localStorage.setItem("mission-control-tasks", JSON.stringify(tasks));
     
-    // Auto-sync all tasks to backend
     Object.entries(tasks).forEach(([stage, stageTasks]) => {
       stageTasks.forEach((task) => {
         const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
@@ -139,7 +135,6 @@ export default function BoardsPage() {
     });
   }, [tasks, selectedBoardId]);
 
-  // Handle hash routing
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1);
@@ -147,6 +142,7 @@ export default function BoardsPage() {
         const board = BOARDS.find((b) => b.slug === hash || b.id === hash);
         if (board) {
           setSelectedBoardId(board.id);
+          setScrollX(0);
         }
       }
     };
@@ -162,7 +158,65 @@ export default function BoardsPage() {
       window.location.hash = board.slug;
       setSelectedBoardId(boardId);
       setMobileMenuOpen(false);
+      setScrollX(0);
     }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, task: Task, stage: string) => {
+    setDraggedTask({ task, fromStage: stage });
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, toStage: string) => {
+    e.preventDefault();
+    if (!draggedTask || draggedTask.fromStage === toStage) return;
+
+    const { task, fromStage } = draggedTask;
+    
+    setTasks((prev) => {
+      const newTasks = { ...prev };
+      newTasks[fromStage] = newTasks[fromStage].filter((t) => t.id !== task.id);
+      newTasks[toStage] = [...(newTasks[toStage] || []), { ...task, updatedAt: new Date().toISOString() }];
+      return newTasks;
+    });
+
+    setDraggedTask(null);
+  };
+
+  // Horizontal scroll with mouse drag
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
+    setIsDragging(true);
+    setDragStartX(e.clientX + scrollX);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !boardContainerRef.current) return;
+    const newScrollX = setDragStartX - e.clientX;
+    setScrollX(Math.max(0, newScrollX));
+    boardContainerRef.current.scrollLeft = newScrollX;
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Touch swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setDragStartX(e.touches[0].clientX + scrollX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!boardContainerRef.current) return;
+    const newScrollX = setDragStartX - e.touches[0].clientX;
+    setScrollX(Math.max(0, newScrollX));
+    boardContainerRef.current.scrollLeft = newScrollX;
   };
 
   const startRecording = async () => {
@@ -176,7 +230,7 @@ export default function BoardsPage() {
         audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.onstop = async () => {
+      mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         const audioUrl = URL.createObjectURL(audioBlob);
         
@@ -202,14 +256,7 @@ export default function BoardsPage() {
           }));
 
           setSelectedTask({ ...selectedTask, task: updatedTask });
-          
-          // Sync voice note to backend for transcription
-          const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
-          if (selectedBoard) {
-            syncCardToBackend(selectedBoard.slug, selectedTask.stage, updatedTask);
-          }
-          
-          setNotification("✅ Voice note recorded and synced");
+          setNotification("✅ Voice note recorded");
           setTimeout(() => setNotification(null), 2000);
         }
       };
@@ -218,7 +265,7 @@ export default function BoardsPage() {
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
     } catch (error) {
-      setNotification("❌ Microphone access denied");
+      setNotification("❌ Microphone denied");
       setTimeout(() => setNotification(null), 2000);
     }
   };
@@ -303,7 +350,6 @@ export default function BoardsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Mobile menu button */}
       <button
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100"
@@ -311,7 +357,6 @@ export default function BoardsPage() {
         {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
-      {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
@@ -319,7 +364,6 @@ export default function BoardsPage() {
         />
       )}
 
-      {/* Left Sidebar */}
       <aside
         className={`fixed md:static left-0 top-0 h-screen bg-white border-r border-slate-200 z-40 transition-all duration-200 flex flex-col ${
           sidebarCollapsed ? "w-20" : "w-64"
@@ -356,13 +400,12 @@ export default function BoardsPage() {
         </nav>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-white border-b border-slate-200 p-4 lg:p-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 mt-12 md:mt-0">{selectedBoard?.name}</h1>
-              <p className="text-sm text-slate-600 mt-1">{stages.length} pipeline stages</p>
+              <p className="text-sm text-slate-600 mt-1">{stages.length} pipeline stages • Drag cards to move • Scroll to pan</p>
             </div>
             <div className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-mono">
               #{selectedBoard?.slug}
@@ -370,51 +413,71 @@ export default function BoardsPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 lg:p-6">
-          <div className="grid gap-4 auto-rows-max" style={{ gridTemplateColumns: `repeat(${Math.min(stages.length, 4)}, minmax(300px, 1fr))` }}>
+        <div
+          ref={boardContainerRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          className="flex-1 overflow-x-auto overflow-y-hidden p-4 lg:p-6 cursor-grab active:cursor-grabbing"
+          style={{ userSelect: isDragging ? "none" : "auto" }}
+        >
+          <div className="grid gap-4 min-w-min" style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(300px, 1fr))` }}>
             {stages.map((stage) => (
-              <div key={stage} className="bg-white rounded-lg border border-slate-200 p-4 flex flex-col min-h-[400px]">
+              <div
+                key={stage}
+                className="bg-white rounded-lg border border-slate-200 p-4 flex flex-col min-h-[600px]"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, stage)}
+              >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-slate-900 text-sm">{stage}</h3>
                   <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">{tasks[stage]?.length || 0}</span>
                 </div>
 
-                <div className="space-y-3 flex-1">
+                <div className="space-y-3 flex-1 overflow-y-auto" data-no-drag>
                   {tasks[stage] && tasks[stage].length > 0 ? (
                     tasks[stage].map((task) => (
                       <div
                         key={task.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, task, stage)}
                         onClick={() => setSelectedTask({ task, stage })}
-                        className="p-3 bg-slate-50 rounded border border-slate-300 hover:shadow-md hover:border-slate-400 transition-all cursor-pointer group"
+                        className="p-3 bg-slate-50 rounded border border-slate-300 hover:shadow-md hover:border-slate-400 transition-all cursor-move group"
                       >
-                        <div className="flex items-start justify-between">
-                          <h4 className="font-medium text-slate-900 text-sm flex-1">{task.title}</h4>
+                        <div className="flex items-start gap-2">
+                          <GripVertical className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-slate-900 text-sm break-words">{task.title}</h4>
+                            <p className="text-xs text-slate-600 mt-1 line-clamp-2">{task.description}</p>
+                            {task.voiceNotes && task.voiceNotes.length > 0 && (
+                              <p className="text-xs text-blue-600 mt-1">🎙️ {task.voiceNotes.length}</p>
+                            )}
+                            <div className="flex gap-2 mt-2 flex-wrap">
+                              {task.tags.map((tag) => (
+                                <span key={tag} className={`text-xs px-2 py-1 rounded-full ${tag === "critical" ? "bg-red-100 text-red-700" : "bg-slate-200 text-slate-700"}`}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               deleteTask(stage, task.id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded"
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded flex-shrink-0"
                           >
                             <Trash2 className="w-4 h-4 text-red-600" />
                           </button>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-1 line-clamp-2">{task.description}</p>
-                        {task.voiceNotes && task.voiceNotes.length > 0 && (
-                          <p className="text-xs text-blue-600 mt-1">🎙️ {task.voiceNotes.length}</p>
-                        )}
-                        <div className="flex gap-2 mt-2">
-                          {task.tags.map((tag) => (
-                            <span key={tag} className={`text-xs px-2 py-1 rounded-full ${tag === "critical" ? "bg-red-100 text-red-700" : "bg-slate-200 text-slate-700"}`}>
-                              {tag}
-                            </span>
-                          ))}
                         </div>
                       </div>
                     ))
                   ) : (
                     <div className="p-3 bg-slate-50 rounded border border-dashed border-slate-300 text-center text-xs text-slate-500 min-h-[100px] flex items-center justify-center">
-                      No tasks
+                      Drop cards here
                     </div>
                   )}
                 </div>
@@ -422,6 +485,7 @@ export default function BoardsPage() {
                 <button
                   onClick={() => addTask(stage, "New Task")}
                   className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300"
+                  data-no-drag
                 >
                   <Plus className="w-4 h-4" />
                   Add task
@@ -432,7 +496,6 @@ export default function BoardsPage() {
         </div>
       </main>
 
-      {/* Card Detail Modal */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedTask(null)}>
           <div
