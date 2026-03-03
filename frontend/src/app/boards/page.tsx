@@ -42,13 +42,29 @@ const BOARD_STAGES: Record<string, string[]> = {
 
 const DEFAULT_STAGES = ["Inbox", "In Progress", "Review", "Done"];
 
+// Sample tasks for demo
+const SAMPLE_TASKS: Record<string, Record<string, any[]>> = {
+  "ops-blocked": {
+    "Waiting on Input": [
+      {
+        id: "task-1",
+        title: "Provide Q2 Critical Inputs",
+        description: "Need 3 items: booking link, interview answers, case studies",
+        priority: "high",
+        tags: ["critical", "q2-launch"]
+      }
+    ]
+  }
+};
+
 export default function BoardsPage() {
-  const [selectedBoardId, setSelectedBoardId] = useState<string>("1");
+  const [selectedBoardId, setSelectedBoardId] = useState<string>("15");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
   const stages = selectedBoard ? (BOARD_STAGES[selectedBoard.slug] || DEFAULT_STAGES) : DEFAULT_STAGES;
+  const tasks = SAMPLE_TASKS[selectedBoard?.slug] || {};
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -128,9 +144,35 @@ export default function BoardsPage() {
               >
                 <h3 className="font-semibold text-slate-900 mb-4 text-sm">{stage}</h3>
                 <div className="space-y-3 flex-1">
-                  <div className="p-3 bg-slate-50 rounded border border-dashed border-slate-300 text-center text-xs text-slate-500 min-h-[100px] flex items-center justify-center">
-                    No tasks
-                  </div>
+                  {tasks[stage] && tasks[stage].length > 0 ? (
+                    tasks[stage].map((task) => (
+                      <div
+                        key={task.id}
+                        className="p-3 bg-slate-50 rounded border border-slate-300 hover:shadow-md transition-shadow cursor-pointer"
+                      >
+                        <h4 className="font-medium text-slate-900 text-sm">{task.title}</h4>
+                        <p className="text-xs text-slate-600 mt-1">{task.description}</p>
+                        <div className="flex gap-2 mt-2">
+                          {task.tags && task.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                tag === "critical"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 bg-slate-50 rounded border border-dashed border-slate-300 text-center text-xs text-slate-500 min-h-[100px] flex items-center justify-center">
+                      No tasks
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
