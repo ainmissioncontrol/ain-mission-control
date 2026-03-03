@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2, X as XIcon, Edit2, Save, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2, X as XIcon, Edit2, Mic, Square, AlertCircle } from "lucide-react";
 
 const BOARDS = [
   { id: "1", name: "AIN: Lead Pipeline", slug: "ain-lead-pipeline" },
@@ -39,6 +39,13 @@ const BOARD_STAGES: Record<string, string[]> = {
   "ops-blocked": ["Waiting on Decision", "Waiting on Input", "External Blocker"],
 };
 
+interface VoiceNote {
+  id: string;
+  timestamp: string;
+  audioUrl: string;
+  transcript?: string;
+}
+
 interface Checklist {
   id: string;
   text: string;
@@ -53,6 +60,7 @@ interface Task {
   tags: string[];
   checklist?: Checklist[];
   notes?: string;
+  voiceNotes?: VoiceNote[];
   assignee?: string;
   dueDate?: string;
   updatedAt?: string;
@@ -63,8 +71,10 @@ export default function BoardsPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<{ task: Task; stage: string } | null>(null);
-  const [editingField, setEditingField] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   
   const [tasks, setTasks] = useState<Record<string, Task[]>>({
     "Waiting on Input": [
@@ -80,6 +90,7 @@ export default function BoardsPage() {
           { id: "check-3", text: "2-3 customer case studies", completed: false }
         ],
         notes: "These inputs unlock Phase 4 execution. Once received, we can finalize content strategy and launch.",
+        voiceNotes: [],
         assignee: "Jeff",
         dueDate: "2026-03-07",
         updatedAt: new Date().toISOString()
@@ -126,6 +137,65 @@ export default function BoardsPage() {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        if (selectedTask) {
+          const voiceNote: VoiceNote = {
+            id: `voice-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            audioUrl,
+            transcript: "[Transcription pending - send audio to Jessica]"
+          };
+
+          const updatedTask = {
+            ...selectedTask.task,
+            voiceNotes: [...(selectedTask.task.voiceNotes || []), voiceNote],
+            updatedAt: new Date().toISOString()
+          };
+
+          setTasks((prev) => ({
+            ...prev,
+            [selectedTask.stage]: prev[selectedTask.stage].map((t) =>
+              t.id === selectedTask.task.id ? updatedTask : t
+            )
+          }));
+
+          setSelectedTask({ ...selectedTask, task: updatedTask });
+          setNotification("✅ Voice note recorded and saved");
+          setTimeout(() => setNotification(null), 2000);
+        }
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+    } catch (error) {
+      setNotification("❌ Microphone access denied");
+      setTimeout(() => setNotification(null), 2000);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      setIsRecording(false);
+    }
+  };
+
   const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
   const stages = selectedBoard ? (BOARD_STAGES[selectedBoard.slug] || ["Inbox", "In Progress", "Review", "Done"]) : ["Inbox", "In Progress", "Review", "Done"];
 
@@ -138,6 +208,7 @@ export default function BoardsPage() {
       tags: [],
       checklist: [],
       notes: "",
+      voiceNotes: [],
       updatedAt: new Date().toISOString()
     };
     setTasks((prev) => ({
@@ -172,7 +243,6 @@ export default function BoardsPage() {
 
     setSelectedTask({ ...selectedTask, task: updatedTask });
     
-    // Show notification
     setNotification(`✅ ${field} updated`);
     setTimeout(() => setNotification(null), 2000);
   };
@@ -296,6 +366,9 @@ export default function BoardsPage() {
                           </button>
                         </div>
                         <p className="text-xs text-slate-600 mt-1 line-clamp-2">{task.description}</p>
+                        {task.voiceNotes && task.voiceNotes.length > 0 && (
+                          <p className="text-xs text-blue-600 mt-1">🎙️ {task.voiceNotes.length} voice note(s)</p>
+                        )}
                         <div className="flex gap-2 mt-2">
                           {task.tags.map((tag) => (
                             <span
@@ -340,15 +413,7 @@ export default function BoardsPage() {
             {/* Modal header */}
             <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-start justify-between">
               <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-bold text-slate-900">{selectedTask.task.title}</h2>
-                  <button
-                    onClick={() => setEditingField(editingField === "title" ? null : "title")}
-                    className="p-1 hover:bg-slate-100 rounded"
-                  >
-                    <Edit2 className="w-4 h-4 text-slate-500" />
-                  </button>
-                </div>
+                <h2 className="text-2xl font-bold text-slate-900">{selectedTask.task.title}</h2>
                 <p className="text-sm text-slate-600 mt-2">{selectedTask.stage}</p>
               </div>
               <button
@@ -415,6 +480,42 @@ export default function BoardsPage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm h-24 resize-none"
                   placeholder="Add notes..."
                 />
+              </div>
+
+              {/* Voice Notes */}
+              <div>
+                <label className="text-sm font-semibold text-slate-900 block mb-3">Voice Notes</label>
+                {isRecording ? (
+                  <button
+                    onClick={stopRecording}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium"
+                  >
+                    <Square className="w-5 h-5" />
+                    Stop Recording
+                  </button>
+                ) : (
+                  <button
+                    onClick={startRecording}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium"
+                  >
+                    <Mic className="w-5 h-5" />
+                    Record Voice Note
+                  </button>
+                )}
+                
+                {selectedTask.task.voiceNotes && selectedTask.task.voiceNotes.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {selectedTask.task.voiceNotes.map((note) => (
+                      <div key={note.id} className="p-3 bg-blue-50 rounded border border-blue-200">
+                        <audio controls className="w-full mb-2">
+                          <source src={note.audioUrl} type="audio/webm" />
+                        </audio>
+                        <p className="text-xs text-slate-600 mb-1">{new Date(note.timestamp).toLocaleString()}</p>
+                        <p className="text-xs text-slate-700">{note.transcript}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Checklist */}
