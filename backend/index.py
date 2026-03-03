@@ -1,32 +1,84 @@
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
+import json
+import asyncio
 
 app = FastAPI()
 
-@app.get("/")
-def root():
-    return {"status": "ok"}
+# CORS config
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# In-memory card storage
+cards_db = {}
 
 @app.get("/health")
 def health():
     return {"ok": True}
 
-@app.get("/api/v1/boards")
-def boards():
-    return {"boards": [
-        {"id": "1", "name": "AIN: Lead Pipeline", "slug": "ain-lead-pipeline"},
-        {"id": "2", "name": "AIN: CROS Clients", "slug": "ain-cros-clients"},
-        {"id": "3", "name": "Investing: Deal Pipeline", "slug": "investing-deal-pipeline"},
-        {"id": "4", "name": "Investing: Portfolio", "slug": "investing-portfolio"},
-        {"id": "5", "name": "WGOOAA: Growth", "slug": "wgooaa-growth"},
-        {"id": "6", "name": "WGOOAA: Content", "slug": "wgooaa-content"},
-        {"id": "7", "name": "Patriot: M&A Pipeline", "slug": "patriot-ma-pipeline"},
-        {"id": "8", "name": "Patriot: Investor Outreach", "slug": "patriot-investor-outreach"},
-        {"id": "9", "name": "Launch Commerce: Features", "slug": "lc-features"},
-        {"id": "10", "name": "AIN FX: Tracking", "slug": "ain-fx-tracking"},
-        {"id": "11", "name": "Angel & Heroes: Recovery", "slug": "ah-recovery"},
-        {"id": "12", "name": "Ops: Content Pipeline", "slug": "ops-content"},
-        {"id": "13", "name": "Ops: Tech Build", "slug": "ops-tech"},
-        {"id": "14", "name": "Ops: Ideas", "slug": "ops-ideas"},
-        {"id": "15", "name": "Ops: Blocked", "slug": "ops-blocked"},
-    ]}
+@app.post("/api/cards/sync")
+async def sync_cards(data: dict):
+    """Frontend sends card updates here"""
+    board_slug = data.get("board")
+    stage = data.get("stage")
+    task = data.get("task")
+    
+    if not all([board_slug, stage, task]):
+        raise HTTPException(status_code=400, detail="Missing fields")
+    
+    # Store card
+    key = f"{board_slug}:{stage}:{task['id']}"
+    cards_db[key] = {
+        "board": board_slug,
+        "stage": stage,
+        "task": task,
+        "synced_at": datetime.utcnow().isoformat()
+    }
+    
+    # Check if Q2 inputs card is complete
+    if board_slug == "ops-blocked" and task["id"] == "task-1":
+        checklist = task.get("checklist", [])
+        all_complete = all(item.get("completed", False) for item in checklist)
+        
+        if all_complete:
+            # TRIGGER: Phase 4 execution
+            return {
+                "status": "success",
+                "message": "All Q2 inputs received! Phase 4 ready to launch.",
+                "phase4_ready": True
+            }
+    
+    return {"status": "success", "synced": True}
+
+@app.get("/api/cards/{board_slug}")
+def get_board_cards(board_slug: str):
+    """Get all cards for a board"""
+    board_cards = [v for k, v in cards_db.items() if v["board"] == board_slug]
+    return {"cards": board_cards}
+
+@app.post("/api/voice-transcribe")
+async def transcribe_voice(data: dict):
+    """Receive audio file and transcribe with local Whisper"""
+    audio_url = data.get("audio_url")
+    task_id = data.get("task_id")
+    
+    if not audio_url or not task_id:
+        raise HTTPException(status_code=400, detail="Missing fields")
+    
+    # Placeholder: In real implementation, download and transcribe
+    # For now, return ready-for-transcription status
+    return {
+        "status": "pending_transcription",
+        "task_id": task_id,
+        "message": "Audio received, transcription queued"
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
