@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 
 const BOARDS = [
   { id: "1", name: "AIN: Lead Pipeline", slug: "ain-lead-pipeline" },
@@ -39,25 +39,55 @@ const BOARD_STAGES: Record<string, string[]> = {
   "ops-blocked": ["Waiting on Decision", "Waiting on Input", "External Blocker"],
 };
 
-const DEFAULT_STAGES = ["Inbox", "In Progress", "Review", "Done"];
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+  tags: string[];
+}
 
 export default function BoardsPage() {
   const [selectedBoardId, setSelectedBoardId] = useState<string>("15");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [tasks, setTasks] = useState<Record<string, Record<string, any[]>>>({});
-
-  // Load tasks from JSON file (no redeploy needed)
-  useEffect(() => {
-    fetch("/data/tasks.json")
-      .then((r) => r.json())
-      .then((data) => setTasks(data))
-      .catch(() => setTasks({}));
-  }, []);
+  
+  // Local state for tasks - will be replaced with database
+  const [tasks, setTasks] = useState<Record<string, Task[]>>({
+    "Waiting on Input": [
+      {
+        id: "task-1",
+        title: "Provide Q2 Critical Inputs",
+        description: "Need: booking link, interview answers, case studies",
+        priority: "high",
+        tags: ["critical", "q2-launch"]
+      }
+    ]
+  });
 
   const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
-  const stages = selectedBoard ? (BOARD_STAGES[selectedBoard.slug] || DEFAULT_STAGES) : DEFAULT_STAGES;
-  const boardTasks = tasks[selectedBoard?.slug] || {};
+  const stages = selectedBoard ? (BOARD_STAGES[selectedBoard.slug] || ["Inbox", "In Progress", "Review", "Done"]) : ["Inbox", "In Progress", "Review", "Done"];
+
+  const addTask = (stage: string, title: string) => {
+    const newTask: Task = {
+      id: `task-${Date.now()}`,
+      title,
+      description: "",
+      priority: "medium",
+      tags: []
+    };
+    setTasks((prev) => ({
+      ...prev,
+      [stage]: [...(prev[stage] || []), newTask]
+    }));
+  };
+
+  const deleteTask = (stage: string, taskId: string) => {
+    setTasks((prev) => ({
+      ...prev,
+      [stage]: prev[stage].filter((t) => t.id !== taskId)
+    }));
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -83,7 +113,6 @@ export default function BoardsPage() {
           sidebarCollapsed ? "w-20" : "w-64"
         } ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
-        {/* Sidebar header */}
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           {!sidebarCollapsed && <h2 className="font-bold text-slate-900">Boards</h2>}
           <button
@@ -94,7 +123,6 @@ export default function BoardsPage() {
           </button>
         </div>
 
-        {/* Boards list */}
         <nav className="flex-1 overflow-y-auto p-3">
           <ul className="space-y-1">
             {BOARDS.map((board) => (
@@ -121,38 +149,40 @@ export default function BoardsPage() {
 
       {/* Main Content Area - Kanban Board */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Top header */}
         <div className="bg-white border-b border-slate-200 p-4 lg:p-6">
           <h1 className="text-2xl font-bold text-slate-900 mt-12 md:mt-0">{selectedBoard?.name}</h1>
           <p className="text-sm text-slate-600 mt-1">{stages.length} pipeline stages</p>
         </div>
 
-        {/* Kanban board */}
         <div className="flex-1 overflow-auto p-4 lg:p-6">
           <div className="grid gap-4 auto-rows-max" style={{ gridTemplateColumns: `repeat(${Math.min(stages.length, 4)}, minmax(300px, 1fr))` }}>
             {stages.map((stage) => (
-              <div
-                key={stage}
-                className="bg-white rounded-lg border border-slate-200 p-4 flex flex-col min-h-[400px]"
-              >
-                <h3 className="font-semibold text-slate-900 mb-4 text-sm">{stage}</h3>
+              <div key={stage} className="bg-white rounded-lg border border-slate-200 p-4 flex flex-col min-h-[400px]">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-slate-900 text-sm">{stage}</h3>
+                  <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">{tasks[stage]?.length || 0}</span>
+                </div>
+
                 <div className="space-y-3 flex-1">
-                  {boardTasks[stage] && boardTasks[stage].length > 0 ? (
-                    boardTasks[stage].map((task) => (
-                      <div
-                        key={task.id}
-                        className="p-3 bg-slate-50 rounded border border-slate-300 hover:shadow-md transition-shadow cursor-pointer"
-                      >
-                        <h4 className="font-medium text-slate-900 text-sm">{task.title}</h4>
+                  {tasks[stage] && tasks[stage].length > 0 ? (
+                    tasks[stage].map((task) => (
+                      <div key={task.id} className="p-3 bg-slate-50 rounded border border-slate-300 hover:shadow-md transition-shadow group">
+                        <div className="flex items-start justify-between">
+                          <h4 className="font-medium text-slate-900 text-sm flex-1">{task.title}</h4>
+                          <button
+                            onClick={() => deleteTask(stage, task.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </button>
+                        </div>
                         <p className="text-xs text-slate-600 mt-1">{task.description}</p>
                         <div className="flex gap-2 mt-2">
-                          {task.tags && task.tags.map((tag) => (
+                          {task.tags.map((tag) => (
                             <span
                               key={tag}
                               className={`text-xs px-2 py-1 rounded-full ${
-                                tag === "critical"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-slate-200 text-slate-700"
+                                tag === "critical" ? "bg-red-100 text-red-700" : "bg-slate-200 text-slate-700"
                               }`}
                             >
                               {tag}
@@ -167,6 +197,14 @@ export default function BoardsPage() {
                     </div>
                   )}
                 </div>
+
+                <button
+                  onClick={() => addTask(stage, "New Task")}
+                  className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg border border-dashed border-slate-300"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add task
+                </button>
               </div>
             ))}
           </div>
