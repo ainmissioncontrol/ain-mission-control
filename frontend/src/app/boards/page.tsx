@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2, X as XIcon, Edit2, Mic, Square, AlertCircle } from "lucide-react";
+import { Menu, X, ChevronLeft, ChevronRight, Plus, Trash2, X as XIcon, Mic, Square, AlertCircle } from "lucide-react";
 
 const BOARDS = [
   { id: "1", name: "AIN: Lead Pipeline", slug: "ain-lead-pipeline" },
@@ -66,6 +66,24 @@ interface Task {
   updatedAt?: string;
 }
 
+// Auto-sync card to backend
+async function syncCardToBackend(boardSlug: string, stage: string, task: Task) {
+  try {
+    const response = await fetch("https://ain-mission-control.vercel.app/api/cards/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ board: boardSlug, stage, task })
+    });
+    const result = await response.json();
+    
+    if (result.phase4_ready) {
+      console.log("🚀 PHASE 4 READY!");
+    }
+  } catch (error) {
+    // Offline mode: continue
+  }
+}
+
 export default function BoardsPage() {
   const [selectedBoardId, setSelectedBoardId] = useState<string>("15");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -106,10 +124,20 @@ export default function BoardsPage() {
     }
   }, []);
 
-  // Save to localStorage whenever tasks change
+  // Save to localStorage AND sync to backend whenever tasks change
   useEffect(() => {
     localStorage.setItem("mission-control-tasks", JSON.stringify(tasks));
-  }, [tasks]);
+    
+    // Auto-sync all tasks to backend
+    Object.entries(tasks).forEach(([stage, stageTasks]) => {
+      stageTasks.forEach((task) => {
+        const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
+        if (selectedBoard) {
+          syncCardToBackend(selectedBoard.slug, stage, task);
+        }
+      });
+    });
+  }, [tasks, selectedBoardId]);
 
   // Handle hash routing
   useEffect(() => {
@@ -148,7 +176,7 @@ export default function BoardsPage() {
         audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         const audioUrl = URL.createObjectURL(audioBlob);
         
@@ -157,7 +185,7 @@ export default function BoardsPage() {
             id: `voice-${Date.now()}`,
             timestamp: new Date().toISOString(),
             audioUrl,
-            transcript: "[Transcription pending - send audio to Jessica]"
+            transcript: "[Transcription pending]"
           };
 
           const updatedTask = {
@@ -174,7 +202,14 @@ export default function BoardsPage() {
           }));
 
           setSelectedTask({ ...selectedTask, task: updatedTask });
-          setNotification("✅ Voice note recorded and saved");
+          
+          // Sync voice note to backend for transcription
+          const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
+          if (selectedBoard) {
+            syncCardToBackend(selectedBoard.slug, selectedTask.stage, updatedTask);
+          }
+          
+          setNotification("✅ Voice note recorded and synced");
           setTimeout(() => setNotification(null), 2000);
         }
       };
@@ -242,9 +277,8 @@ export default function BoardsPage() {
     }));
 
     setSelectedTask({ ...selectedTask, task: updatedTask });
-    
-    setNotification(`✅ ${field} updated`);
-    setTimeout(() => setNotification(null), 2000);
+    setNotification(`✅ Updated`);
+    setTimeout(() => setNotification(null), 1500);
   };
 
   const toggleChecklistItem = (taskId: string, checkId: string) => {
@@ -285,7 +319,7 @@ export default function BoardsPage() {
         />
       )}
 
-      {/* Left Sidebar - Boards List */}
+      {/* Left Sidebar */}
       <aside
         className={`fixed md:static left-0 top-0 h-screen bg-white border-r border-slate-200 z-40 transition-all duration-200 flex flex-col ${
           sidebarCollapsed ? "w-20" : "w-64"
@@ -322,7 +356,7 @@ export default function BoardsPage() {
         </nav>
       </aside>
 
-      {/* Main Content Area - Kanban Board */}
+      {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-white border-b border-slate-200 p-4 lg:p-6">
           <div className="flex items-center justify-between">
@@ -367,16 +401,11 @@ export default function BoardsPage() {
                         </div>
                         <p className="text-xs text-slate-600 mt-1 line-clamp-2">{task.description}</p>
                         {task.voiceNotes && task.voiceNotes.length > 0 && (
-                          <p className="text-xs text-blue-600 mt-1">🎙️ {task.voiceNotes.length} voice note(s)</p>
+                          <p className="text-xs text-blue-600 mt-1">🎙️ {task.voiceNotes.length}</p>
                         )}
                         <div className="flex gap-2 mt-2">
                           {task.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className={`text-xs px-2 py-1 rounded-full ${
-                                tag === "critical" ? "bg-red-100 text-red-700" : "bg-slate-200 text-slate-700"
-                              }`}
-                            >
+                            <span key={tag} className={`text-xs px-2 py-1 rounded-full ${tag === "critical" ? "bg-red-100 text-red-700" : "bg-slate-200 text-slate-700"}`}>
                               {tag}
                             </span>
                           ))}
@@ -410,21 +439,16 @@ export default function BoardsPage() {
             className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-start justify-between">
               <div className="flex-1">
                 <h2 className="text-2xl font-bold text-slate-900">{selectedTask.task.title}</h2>
                 <p className="text-sm text-slate-600 mt-2">{selectedTask.stage}</p>
               </div>
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="p-2 hover:bg-slate-100 rounded-lg"
-              >
+              <button onClick={() => setSelectedTask(null)} className="p-2 hover:bg-slate-100 rounded-lg">
                 <XIcon className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Notification */}
             {notification && (
               <div className="mx-6 mt-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
@@ -432,9 +456,7 @@ export default function BoardsPage() {
               </div>
             )}
 
-            {/* Modal content */}
             <div className="p-6 space-y-6">
-              {/* Priority & Assignee */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-semibold text-slate-900 block mb-2">Priority</label>
@@ -460,7 +482,6 @@ export default function BoardsPage() {
                 </div>
               </div>
 
-              {/* Description */}
               <div>
                 <label className="text-sm font-semibold text-slate-900 block mb-2">Description</label>
                 <textarea
@@ -471,7 +492,6 @@ export default function BoardsPage() {
                 />
               </div>
 
-              {/* Notes */}
               <div>
                 <label className="text-sm font-semibold text-slate-900 block mb-2">Notes</label>
                 <textarea
@@ -482,7 +502,6 @@ export default function BoardsPage() {
                 />
               </div>
 
-              {/* Voice Notes */}
               <div>
                 <label className="text-sm font-semibold text-slate-900 block mb-3">Voice Notes</label>
                 {isRecording ? (
@@ -518,7 +537,6 @@ export default function BoardsPage() {
                 )}
               </div>
 
-              {/* Checklist */}
               {selectedTask.task.checklist && selectedTask.task.checklist.length > 0 && (
                 <div>
                   <label className="text-sm font-semibold text-slate-900 block mb-3">Checklist</label>
@@ -540,7 +558,6 @@ export default function BoardsPage() {
                 </div>
               )}
 
-              {/* Due Date */}
               <div>
                 <label className="text-sm font-semibold text-slate-900 block mb-2">Due Date</label>
                 <input
@@ -551,7 +568,6 @@ export default function BoardsPage() {
                 />
               </div>
 
-              {/* Last Updated */}
               {selectedTask.task.updatedAt && (
                 <p className="text-xs text-slate-500 text-right">
                   Last updated: {new Date(selectedTask.task.updatedAt).toLocaleString()}
