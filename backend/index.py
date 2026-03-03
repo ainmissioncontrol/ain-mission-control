@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import json
 import asyncio
+from typing import Dict, List
 
 app = FastAPI()
 
@@ -15,8 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory card storage
-cards_db = {}
+# In-memory storage
+cards_db: Dict = {}
+updates_log: List = []
+last_checked = datetime.utcnow().isoformat()
 
 @app.get("/health")
 def health():
@@ -34,12 +37,18 @@ async def sync_cards(data: dict):
     
     # Store card
     key = f"{board_slug}:{stage}:{task['id']}"
-    cards_db[key] = {
+    update_record = {
+        "key": key,
         "board": board_slug,
         "stage": stage,
         "task": task,
-        "synced_at": datetime.utcnow().isoformat()
+        "synced_at": datetime.utcnow().isoformat(),
+        "has_voice_notes": len(task.get("voiceNotes", [])) > 0,
+        "voice_note_count": len(task.get("voiceNotes", []))
     }
+    
+    cards_db[key] = update_record
+    updates_log.append(update_record)
     
     # Check if Q2 inputs card is complete
     if board_slug == "ops-blocked" and task["id"] == "task-1":
@@ -47,14 +56,41 @@ async def sync_cards(data: dict):
         all_complete = all(item.get("completed", False) for item in checklist)
         
         if all_complete:
-            # TRIGGER: Phase 4 execution
             return {
                 "status": "success",
                 "message": "All Q2 inputs received! Phase 4 ready to launch.",
-                "phase4_ready": True
+                "phase4_ready": True,
+                "task_id": task["id"],
+                "board": board_slug,
+                "stage": stage
             }
     
-    return {"status": "success", "synced": True}
+    return {
+        "status": "success",
+        "synced": True,
+        "task_id": task["id"],
+        "board": board_slug,
+        "stage": stage
+    }
+
+@app.get("/api/updates/since/{timestamp}")
+def get_updates_since(timestamp: str):
+    """Get all updates since timestamp - agent polls this"""
+    try:
+        since = datetime.fromisoformat(timestamp)
+    except:
+        since = datetime.utcnow()
+    
+    recent_updates = [
+        u for u in updates_log 
+        if datetime.fromisoformat(u["synced_at"]) > since
+    ]
+    
+    return {
+        "updates": recent_updates,
+        "count": len(recent_updates),
+        "checked_at": datetime.utcnow().isoformat()
+    }
 
 @app.get("/api/cards/{board_slug}")
 def get_board_cards(board_slug: str):
@@ -62,22 +98,13 @@ def get_board_cards(board_slug: str):
     board_cards = [v for k, v in cards_db.items() if v["board"] == board_slug]
     return {"cards": board_cards}
 
-@app.post("/api/voice-transcribe")
-async def transcribe_voice(data: dict):
-    """Receive audio file and transcribe with local Whisper"""
-    audio_url = data.get("audio_url")
-    task_id = data.get("task_id")
-    
-    if not audio_url or not task_id:
-        raise HTTPException(status_code=400, detail="Missing fields")
-    
-    # Placeholder: In real implementation, download and transcribe
-    # For now, return ready-for-transcription status
-    return {
-        "status": "pending_transcription",
-        "task_id": task_id,
-        "message": "Audio received, transcription queued"
-    }
+@app.get("/api/cards/{board_slug}/{task_id}")
+def get_card(board_slug: str, task_id: str):
+    """Get specific card"""
+    for key, card in cards_db.items():
+        if card["board"] == board_slug and card["task"]["id"] == task_id:
+            return card
+    raise HTTPException(status_code=404, detail="Card not found")
 
 if __name__ == "__main__":
     import uvicorn
