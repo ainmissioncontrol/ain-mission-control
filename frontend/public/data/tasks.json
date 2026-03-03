@@ -1,0 +1,13 @@
+{
+  "ops-blocked": {
+    "Waiting on Input": [
+      {
+        "id": "task-1",
+        "title": "Provide Q2 Critical Inputs",
+        "description": "Need 3 items: booking link, interview answers, case studies",
+        "priority": "high",
+        "tags": ["critical", "q2-launch"]
+      }
+    ]
+  }
+}
