@@ -643,3 +643,29 @@ export default function BoardsPage() {
     </div>
   );
 }
+
+// Add URL parameter reading for direct card opening
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const cardId = params.get('card');
+  if (cardId) {
+    const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
+    if (selectedBoard) {
+      const boardTasks = tasks[Object.keys(BOARD_STAGES[selectedBoard.slug] || {})[0]];
+      let foundTask = null;
+      let foundStage = null;
+      
+      Object.entries(tasks).forEach(([stage, stageTasks]) => {
+        const task = stageTasks.find((t) => t.id === cardId);
+        if (task) {
+          foundTask = task;
+          foundStage = stage;
+        }
+      });
+      
+      if (foundTask && foundStage) {
+        setSelectedTask({ task: foundTask, stage: foundStage });
+      }
+    }
+  }
+}, [tasks, selectedBoardId]);
