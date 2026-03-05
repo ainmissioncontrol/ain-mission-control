@@ -33,7 +33,7 @@ const BOARD_STAGES: Record<string, string[]> = {
   "lc-features": ["Backlog", "Design", "Development", "Testing", "Released"],
   "ain-fx-tracking": ["Entry", "Active", "Monitoring", "Exit"],
   "ah-recovery": ["Assessment", "Turnaround Plan", "Execution", "Monitoring", "Success"],
-  "ops-content": ["Backlog", "Research", "Writing", "Review", "Approved", "Published", "Monitoring"],
+  "ops-content": ["Ideation", "Research", "Drafting", "Review", "Jeff Approval", "Scheduled", "Published"],
   "ops-tech": ["Backlog", "Design", "Development", "Testing", "Deployed"],
   "ops-ideas": ["Brainstorm", "Research", "Planning", "Ready"],
   "ops-blocked": ["Waiting on Decision", "Waiting on Input", "External Blocker"],
