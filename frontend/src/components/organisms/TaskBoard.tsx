@@ -13,7 +13,7 @@ import { TaskCard } from "@/components/molecules/TaskCard";
 import { parseApiDatetime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 
-type TaskStatus = "inbox" | "in_progress" | "review" | "done";
+type TaskStatus = "ideation" | "research" | "drafting" | "review" | "jeff_approval" | "scheduled" | "published";
 
 type Task = {
   id: string;
@@ -49,32 +49,56 @@ const columns: Array<{
   badge: string;
 }> = [
   {
-    title: "Inbox",
-    status: "inbox",
+    title: "Ideation",
+    status: "ideation",
     dot: "bg-slate-400",
     accent: "hover:border-slate-400 hover:bg-slate-50",
     text: "group-hover:text-slate-700 text-slate-500",
     badge: "bg-slate-100 text-slate-600",
   },
   {
-    title: "In Progress",
-    status: "in_progress",
+    title: "Research",
+    status: "research",
+    dot: "bg-blue-500",
+    accent: "hover:border-blue-400 hover:bg-blue-50",
+    text: "group-hover:text-blue-600 text-slate-500",
+    badge: "bg-blue-100 text-blue-700",
+  },
+  {
+    title: "Drafting",
+    status: "drafting",
+    dot: "bg-yellow-500",
+    accent: "hover:border-yellow-400 hover:bg-yellow-50",
+    text: "group-hover:text-yellow-600 text-slate-500",
+    badge: "bg-yellow-100 text-yellow-700",
+  },
+  {
+    title: "Review",
+    status: "review",
+    dot: "bg-orange-500",
+    accent: "hover:border-orange-400 hover:bg-orange-50",
+    text: "group-hover:text-orange-600 text-slate-500",
+    badge: "bg-orange-100 text-orange-700",
+  },
+  {
+    title: "Jeff Approval",
+    status: "jeff_approval",
     dot: "bg-purple-500",
     accent: "hover:border-purple-400 hover:bg-purple-50",
     text: "group-hover:text-purple-600 text-slate-500",
     badge: "bg-purple-100 text-purple-700",
   },
   {
-    title: "Review",
-    status: "review",
-    dot: "bg-indigo-500",
-    accent: "hover:border-indigo-400 hover:bg-indigo-50",
-    text: "group-hover:text-indigo-600 text-slate-500",
-    badge: "bg-indigo-100 text-indigo-700",
+    title: "Scheduled",
+    status: "scheduled",
+    dot: "bg-cyan-500",
+    accent: "hover:border-cyan-400 hover:bg-cyan-50",
+    text: "group-hover:text-cyan-600 text-slate-500",
+    badge: "bg-cyan-100 text-cyan-700",
   },
   {
-    title: "Done",
-    status: "done",
+    title: "Published",
+    status: "published",
     dot: "bg-green-500",
     accent: "hover:border-green-400 hover:bg-green-50",
     text: "group-hover:text-green-600 text-slate-500",
@@ -87,7 +111,7 @@ const columns: Array<{
  *
  * - Returns `due: undefined` when the task has no due date (or it's invalid), so
  *   callers can omit the due-date UI entirely.
- * - Treats a task as overdue only if it is not `done` (so "Done" tasks don't
+ * - Treats a task as overdue only if it is not `published` (so "Published" tasks don't
  *   keep showing as overdue forever).
  */
 const resolveDueState = (
@@ -101,7 +125,7 @@ const resolveDueState = (
     day: "numeric",
   });
 
-  const isOverdue = task.status !== "done" && date.getTime() < Date.now();
+  const isOverdue = task.status !== "published" && date.getTime() < Date.now();
   return {
     due: isOverdue ? `Overdue · ${dueLabel}` : dueLabel,
     isOverdue,
@@ -296,7 +320,7 @@ export const TaskBoard = memo(function TaskBoard({
       buckets[column.status] = [];
     }
     tasks.forEach((task) => {
-      const bucket = buckets[task.status] ?? buckets.inbox;
+      const bucket = buckets[task.status] ?? buckets.ideation;
       bucket.push(task);
     });
     return buckets;
