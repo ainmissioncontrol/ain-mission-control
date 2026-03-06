@@ -9,8 +9,11 @@ export type TaskCreateStatus =
   (typeof TaskCreateStatus)[keyof typeof TaskCreateStatus];
 
 export const TaskCreateStatus = {
-  inbox: "inbox",
-  in_progress: "in_progress",
+  ideation: "ideation",
+  research: "research",
+  drafting: "drafting",
   review: "review",
-  done: "done",
+  jeff_approval: "jeff_approval",
+  scheduled: "scheduled",
+  published: "published",
 } as const;

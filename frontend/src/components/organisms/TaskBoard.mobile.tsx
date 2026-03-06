@@ -16,7 +16,7 @@ import { useState, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type TaskStatus = "inbox" | "in_progress" | "review" | "done";
+type TaskStatus = "ideation" | "research" | "drafting" | "review" | "jeff_approval" | "scheduled" | "published";
 
 type Task = {
   id: string;
@@ -36,10 +36,13 @@ type TaskBoardMobileProps = {
 };
 
 const COLUMNS = [
-  { title: "Inbox", status: "inbox" as TaskStatus, color: "bg-slate-50" },
-  { title: "In Progress", status: "in_progress" as TaskStatus, color: "bg-purple-50" },
-  { title: "Review", status: "review" as TaskStatus, color: "bg-indigo-50" },
-  { title: "Done", status: "done" as TaskStatus, color: "bg-green-50" },
+  { title: "Ideation", status: "ideation" as TaskStatus, color: "bg-slate-50" },
+  { title: "Research", status: "research" as TaskStatus, color: "bg-blue-50" },
+  { title: "Drafting", status: "drafting" as TaskStatus, color: "bg-yellow-50" },
+  { title: "Review", status: "review" as TaskStatus, color: "bg-orange-50" },
+  { title: "Jeff Approval", status: "jeff_approval" as TaskStatus, color: "bg-purple-50" },
+  { title: "Scheduled", status: "scheduled" as TaskStatus, color: "bg-cyan-50" },
+  { title: "Published", status: "published" as TaskStatus, color: "bg-green-50" },
 ];
 
 /**
@@ -70,10 +73,13 @@ export function TaskBoardMobile({
   // Group tasks by status
   const groupedTasks = useMemo(() => {
     const groups: Record<TaskStatus, Task[]> = {
-      inbox: [],
-      in_progress: [],
+      ideation: [],
+      research: [],
+      drafting: [],
       review: [],
-      done: [],
+      jeff_approval: [],
+      scheduled: [],
+      published: [],
     };
     tasks.forEach((task) => {
       groups[task.status].push(task);

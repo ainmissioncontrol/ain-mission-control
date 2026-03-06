@@ -485,7 +485,7 @@ const liveFeedEventPillClass = (eventType: LiveFeedEventType): string => {
 
 const normalizeTask = (task: TaskCardRead): Task => ({
   ...task,
-  status: task.status ?? "inbox",
+  status: task.status ?? "ideation",
   priority: task.priority ?? "medium",
   approvals_count: task.approvals_count ?? 0,
   approvals_pending_count: task.approvals_pending_count ?? 0,
@@ -513,10 +513,13 @@ const priorities = [
   { value: "high", label: "High" },
 ];
 const statusOptions = [
-  { value: "inbox", label: "Inbox" },
-  { value: "in_progress", label: "In progress" },
+  { value: "ideation", label: "Ideation" },
+  { value: "research", label: "Research" },
+  { value: "drafting", label: "Drafting" },
   { value: "review", label: "Review" },
-  { value: "done", label: "Done" },
+  { value: "jeff_approval", label: "Jeff Approval" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "published", label: "Published" },
 ];
 
 const EMOJI_GLYPHS: Record<string, string> = {
@@ -1115,7 +1118,7 @@ export default function BoardDetailPage() {
 
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [editStatus, setEditStatus] = useState<TaskStatus>("inbox");
+  const [editStatus, setEditStatus] = useState<TaskStatus>("ideation");
   const [editPriority, setEditPriority] = useState("medium");
   const [editDueDate, setEditDueDate] = useState("");
   const [editAssigneeId, setEditAssigneeId] = useState("");
@@ -1619,7 +1622,7 @@ export default function BoardDetailPage() {
     if (!selectedTask) {
       setEditTitle("");
       setEditDescription("");
-      setEditStatus("inbox");
+      setEditStatus("ideation");
       setEditPriority("medium");
       setEditDueDate("");
       setEditAssigneeId("");
@@ -1973,7 +1976,7 @@ export default function BoardDetailPage() {
       const payload: BoardTaskCreatePayload = {
         title: trimmed,
         description: description.trim() || null,
-        status: "inbox",
+        status: "ideation",
         priority,
         due_at: localDateInputToUtcIso(createDueDate),
         tag_ids: createTagIds,
@@ -2304,7 +2307,7 @@ export default function BoardDetailPage() {
   const workingAgentIds = useMemo(() => {
     const working = new Set<string>();
     tasks.forEach((task) => {
-      if (task.status === "in_progress" && task.assigned_agent_id) {
+      if (task.status === "drafting" && task.assigned_agent_id) {
         working.add(task.assigned_agent_id);
       }
     });
@@ -2393,7 +2396,7 @@ export default function BoardDetailPage() {
         title: dependencyTask?.title ?? dependencyId,
         statusLabel,
         isBlocking: blockedDependencyIds.has(dependencyId),
-        isDone: dependencyTask?.status === "done",
+        isDone: dependencyTask?.status === "published",
         disabled: !dependencyTask,
         onClick: dependencyTask
           ? () => {
@@ -2419,7 +2422,7 @@ export default function BoardDetailPage() {
           title: task.title,
           statusLabel,
           isBlocking: false,
-          isDone: task.status === "done",
+          isDone: task.status === "published",
           onClick: () => {
             openComments({ id: task.id });
           },
@@ -2586,7 +2589,7 @@ export default function BoardDetailPage() {
         assigned_agent_id: editAssigneeId || null,
       };
 
-      if (depsChanged && selectedTask.status !== "done") {
+      if (depsChanged && selectedTask.status !== "published") {
         updatePayload.depends_on_task_ids = editDependsOnTaskIds;
       }
       if (tagsChanged) {
@@ -2701,7 +2704,7 @@ export default function BoardDetailPage() {
       if (!isSignedIn || !boardId) return;
       const currentTask = tasksRef.current.find((task) => task.id === taskId);
       if (!currentTask || currentTask.status === status) return;
-      if (currentTask.is_blocked && status !== "inbox") {
+      if (currentTask.is_blocked && status !== "ideation") {
         setError("Task is blocked by incomplete dependencies.");
         return;
       }
@@ -2713,8 +2716,8 @@ export default function BoardDetailPage() {
                 ...task,
                 status,
                 assigned_agent_id:
-                  status === "inbox" ? null : task.assigned_agent_id,
-                assignee: status === "inbox" ? null : task.assignee,
+                  status === "ideation" ? null : task.assigned_agent_id,
+                assignee: status === "ideation" ? null : task.assignee,
               }
             : task,
         ),
@@ -2827,11 +2830,11 @@ export default function BoardDetailPage() {
 
   const statusBadgeClass = (value?: string) => {
     switch (value) {
-      case "in_progress":
+      case "drafting":
         return "bg-purple-100 text-purple-700";
       case "review":
         return "bg-indigo-100 text-indigo-700";
-      case "done":
+      case "published":
         return "bg-emerald-100 text-emerald-700";
       default:
         return "bg-slate-100 text-slate-600";
@@ -4239,12 +4242,12 @@ export default function BoardDetailPage() {
                 disabled={
                   !selectedTask ||
                   isSavingTask ||
-                  selectedTask.status === "done" ||
+                  selectedTask.status === "published" ||
                   !canWrite
                 }
                 emptyMessage="No other tasks found."
               />
-              {selectedTask?.status === "done" ? (
+              {selectedTask?.status === "published" ? (
                 <p className="text-xs text-slate-500">
                   Dependencies can only be edited until the task is done.
                 </p>
@@ -4259,7 +4262,7 @@ export default function BoardDetailPage() {
                     const statusLabel = depTask?.status
                       ? depTask.status.replace(/_/g, " ")
                       : null;
-                    const isDone = depTask?.status === "done";
+                    const isDone = depTask?.status === "published";
                     return (
                       <span
                         key={depId}
@@ -4276,7 +4279,7 @@ export default function BoardDetailPage() {
                             {statusLabel}
                           </span>
                         ) : null}
-                        {selectedTask?.status !== "done" ? (
+                        {selectedTask?.status !== "published" ? (
                           <button
                             type="button"
                             onClick={() => removeTaskDependency(depId)}

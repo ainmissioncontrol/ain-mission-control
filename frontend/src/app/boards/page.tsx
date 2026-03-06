@@ -127,7 +127,7 @@ export default function BoardsPage() {
     
     Object.entries(tasks).forEach(([stage, stageTasks]) => {
       stageTasks.forEach((task) => {
-        const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
+        const selectedBoard = BOARDS.find((b) => b.id === (selectedBoardId as string));
         if (selectedBoard) {
           syncCardToBackend(selectedBoard.slug, stage, task);
         }
@@ -198,7 +198,7 @@ export default function BoardsPage() {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging || !boardContainerRef.current) return;
-    const newScrollX = setDragStartX - e.clientX;
+    const newScrollX = dragStartX - e.clientX;
     setScrollX(Math.max(0, newScrollX));
     boardContainerRef.current.scrollLeft = newScrollX;
   };
@@ -214,7 +214,7 @@ export default function BoardsPage() {
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!boardContainerRef.current) return;
-    const newScrollX = setDragStartX - e.touches[0].clientX;
+    const newScrollX = dragStartX - e.touches[0].clientX;
     setScrollX(Math.max(0, newScrollX));
     boardContainerRef.current.scrollLeft = newScrollX;
   };
@@ -278,7 +278,7 @@ export default function BoardsPage() {
     }
   };
 
-  const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
+  const selectedBoard = BOARDS.find((b) => b.id === (selectedBoardId as string));
   const stages = selectedBoard ? (BOARD_STAGES[selectedBoard.slug] || ["Inbox", "In Progress", "Review", "Done"]) : ["Inbox", "In Progress", "Review", "Done"];
 
   const addTask = (stage: string, title: string) => {
@@ -644,28 +644,28 @@ export default function BoardsPage() {
   );
 }
 
-// Add URL parameter reading for direct card opening
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const cardId = params.get('card');
-  if (cardId) {
-    const selectedBoard = BOARDS.find((b) => b.id === selectedBoardId);
-    if (selectedBoard) {
-      const boardTasks = tasks[Object.keys(BOARD_STAGES[selectedBoard.slug] || {})[0]];
-      let foundTask = null;
-      let foundStage = null;
-      
-      Object.entries(tasks).forEach(([stage, stageTasks]) => {
-        const task = stageTasks.find((t) => t.id === cardId);
-        if (task) {
-          foundTask = task;
-          foundStage = stage;
-        }
-      });
-      
-      if (foundTask && foundStage) {
-        setSelectedTask({ task: foundTask, stage: foundStage });
-      }
-    }
-  }
-}, [tasks, selectedBoardId]);
+// // Add URL parameter reading for direct card opening
+// useEffect(() => {
+//   const params = new URLSearchParams(window.location.search);
+//   const cardId = params.get('card');
+//   if (cardId) {
+//     const selectedBoard = BOARDS.find((b) => b.id === (selectedBoardId as string));
+//     if (selectedBoard) {
+//       const boardTasks = tasks[Object.keys(BOARD_STAGES[selectedBoard.slug] || {})[0]];
+//       let foundTask = null;
+//       let foundStage = null;
+//       
+//       Object.entries(tasks).forEach(([stage, stageTasks]) => {
+//         const task = stageTasks.find((t) => t.id === cardId);
+//         if (task) {
+//           foundTask = task;
+//           foundStage = stage;
+//         }
+//       });
+//       
+//       if (foundTask && foundStage) {
+//         setSelectedTask({ task: foundTask, stage: foundStage });
+//       }
+//     }
+//   }
+// }, [tasks, selectedBoardId]);

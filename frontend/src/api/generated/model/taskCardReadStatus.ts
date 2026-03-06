@@ -9,8 +9,11 @@ export type TaskCardReadStatus =
   (typeof TaskCardReadStatus)[keyof typeof TaskCardReadStatus];
 
 export const TaskCardReadStatus = {
-  inbox: "inbox",
-  in_progress: "in_progress",
+  ideation: "ideation",
+  research: "research",
+  drafting: "drafting",
   review: "review",
-  done: "done",
+  jeff_approval: "jeff_approval",
+  scheduled: "scheduled",
+  published: "published",
 } as const;

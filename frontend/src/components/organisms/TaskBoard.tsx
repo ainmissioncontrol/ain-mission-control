@@ -311,10 +311,13 @@ export const TaskBoard = memo(function TaskBoard({
 
   const grouped = useMemo(() => {
     const buckets: Record<TaskStatus, Task[]> = {
-      inbox: [],
-      in_progress: [],
-      review: [],
-      done: [],
+      ideation: [],
+      research: [],
+      drafting: [],
+    review: [],
+      jeff_approval: [],
+    scheduled: [],
+    published: [],
     };
     for (const column of columns) {
       buckets[column.status] = [];
